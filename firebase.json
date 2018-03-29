@@ -14,8 +14,12 @@
     ],
     "rewrites": [
       {
-        "source": "**",
-        "function": "helloWorld"
+        "source": "/authorize",
+        "function": "authorize"
+      },
+      {
+        "source": "/callback",
+        "function": "callback"
       }
     ]
   }

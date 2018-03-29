@@ -10,6 +10,7 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
+    "axios": "^0.18.0",
     "firebase-admin": "~5.8.1",
     "firebase-functions": "^0.8.1",
     "square-connect": "^2.6.1"
