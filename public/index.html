@@ -37,6 +37,7 @@
       <h1>Checkout Now</h1>
       <p>Click below to connect your account.</p>
       <div id="firebaseui-auth-container"></div>
+      <div id="loader">Loading...</div>
       <a href="/authorize">Authorize</a>
     </div>
 
@@ -51,14 +52,41 @@
         // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
         //
         // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        ui.start('#firebaseui-auth-container', {
+
+        // Initialize the FirebaseUI Widget using Firebase.
+        var ui = new firebaseui.auth.AuthUI(firebase.auth());
+        var uiConfig = {
+          callbacks: {
+            signInSuccess: function (currentUser, credential, redirectUrl) {
+              // User successfully signed in.
+              // Return type determines whether we continue the redirect automatically
+              // or whether we leave that to developer to handle.
+              return true;
+            },
+            uiShown: function () {
+              // The widget is rendered.
+              // Hide the loader.
+              document.getElementById('loader').style.display = 'none';
+            }
+          },
+          credentialHelper: firebaseui.auth.CredentialHelper.ACCOUNT_CHOOSER_COM,
+          signInSuccessUrl: 'https://checkout-now.firebaseapp.com/catalog',
           signInOptions: [
+            // Leave the lines as is for the providers you want to offer your users.
             {
               provider: firebase.auth.EmailAuthProvider.PROVIDER_ID,
               requireDisplayName: false
             }
-          ]
-        });
+          ],
+          signInFlow: 'popup',
+          'credentialHelper': firebaseui.auth.CredentialHelper.NONE,
+          // Terms of service url.
+          tosUrl: '<your-tos-url>'
+        };
+
+        // The start method will wait until the DOM is loaded.
+        ui.start('#firebaseui-auth-container', uiConfig);
+
         try {
           let app = firebase.app();
           let features = ['auth', 'database', 'messaging', 'storage'].filter(feature => typeof app[feature] === 'function');
@@ -68,20 +96,6 @@
           document.getElementById('load').innerHTML = 'Error loading the Firebase SDK, check the console.';
         }
       });
-
-      // FirebaseUI config.
-      var uiConfig = {
-        signInSuccessUrl: '/catalog',
-        signInOptions: [
-          // Leave the lines as is for the providers you want to offer your users.
-          firebase.auth.EmailAuthProvider.PROVIDER_ID,
-        ]
-      };
-
-      // Initialize the FirebaseUI Widget using Firebase.
-      var ui = new firebaseui.auth.AuthUI(firebase.auth());
-      // The start method will wait until the DOM is loaded.
-      ui.start('#firebaseui-auth-container', uiConfig);
     </script>
   </body>
 </html>

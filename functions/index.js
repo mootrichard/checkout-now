@@ -72,7 +72,7 @@ exports.authorize = functions.https.onRequest((request, response) => {
     squareAuthURL +
     `client_id=${functions.config().square.prod.app_id}&` +
     `response_type=code&` +
-    `scope=MERCHANT_PROFILE_READ PAYMENTS_WRITE ORDERS_WRITE&` +
+    `scope=MERCHANT_PROFILE_READ PAYMENTS_WRITE ORDERS_WRITE ITEMS_READ&` +
     `session=false&` +
     `locale=en-US&` +
     `state=${state}`
@@ -143,7 +143,7 @@ function signInFirebaseTemplate(token) {
       };
       var app = firebase.initializeApp(config);
       app.auth().signInWithCustomToken(token).then(function() {
-        window.close();
+        window.location.href = "https://checkout-now.firebaseapp.com/catalog";
       });
     </script>`;
 }

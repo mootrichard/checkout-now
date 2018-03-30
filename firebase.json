@@ -20,6 +20,10 @@
       {
         "source": "/callback",
         "function": "callback"
+      },
+      {
+        "source": "/catalog",
+        "function": "catalog"
       }
     ]
   }
