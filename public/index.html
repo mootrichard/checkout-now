@@ -36,9 +36,9 @@
       <h2>Welcome</h2>
       <h1>Checkout Now</h1>
       <p>Click below to connect your account.</p>
-      <a href="/authorize">Authorize</a>
+      <a href="/authorize" target="_blank">Authorize</a>
       <form id="showCatalog" action="/catalog" method="POST">
-        <input id="tokenInput" type="hidden" value="" />
+        <input name="idToken" id="tokenInput" type="hidden" value="" />
       </form>
     </div>
 
@@ -79,8 +79,13 @@
               // result.additionalUserInfo.profile == null
               // You can check if the user is new or existing:
               // result.additionalUserInfo.isNewUser
-              document.getElementById('tokenInput').value = firebase.auth().currentUser.getIdToken();
-              document.getElementById('showCatalog').submit();
+              firebase.auth().currentUser.getIdToken().then(function (idToken) {
+                document.getElementById('tokenInput').value = idToken;
+                document.getElementById('showCatalog').submit();
+              }).catch(function (error) {
+                // Handle error
+              });
+
             })
             .catch(function (error) {
               // Some error occurred, you can inspect the code: error.code
