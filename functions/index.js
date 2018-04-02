@@ -3,44 +3,55 @@ const admin = require('firebase-admin');
 const SquareConnect = require('square-connect');
 const crypto = require('crypto');
 const axios = require('axios');
+const express = require('express');
 const serviceAccount = require("./service-account.json");
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: functions.config().firebase.databaseURL
 });
 
-function createFirebaseAccount(id, squareEmail, displayName, accessToken) {
-  // The UID we'll assign to the user.
-  const uid = `square:${id}`;
+const app = express();
 
-  // Save the access token tot he Firebase Realtime Database.
-  const databaseTask = admin.database().ref(`/squareAccessToken/${uid}`)
-    .set(accessToken);
+app.get('/checkout/:userId/:variantId', (request, response) => {
 
-  // Create or update the user account.
-  const userCreationTask = admin.auth().updateUser(uid, {
-    displayName: displayName,
-    email: squareEmail
-  }).catch(error => {
-    // If user does not exists we create it.
-    if (error.code === 'auth/user-not-found') {
-      return admin.auth().createUser({
-        uid: uid,
-        displayName: displayName,
-        email: squareEmail
+  admin.database().ref(`/squareAccessToken/square:${request.params.userId}`).once('value').then((userToken) => {
+    let idempotencyKey = crypto.randomBytes(48).toString('base64');
+    (SquareConnect.ApiClient.instance)
+      .authentications["oauth2"]
+      .accessToken = userToken.val();
+
+    const catalogApi = new SquareConnect.CatalogApi();
+
+    catalogApi.retrieveCatalogObject(request.params.variantId).then((item) => {
+      let locationId = item.object.present_at_location_ids[0];
+      let checkoutReq = {
+        idempotency_key: idempotencyKey,
+        order: {
+          idempotency_key: idempotencyKey,
+          reference_id: Date.now().toString(),
+          line_items: [
+            {
+              catalog_object_id: request.params.variantId,
+              quantity: "1"
+            }
+          ],
+        }
+      }
+
+      checkoutApi.createCheckout(locationId, checkoutReq).then((returnedCheckout)=>{
+        response.redirect(returnedCheckout.checkout.checkout_page_url);
+        return;
+      }).catch((error)=>{
+        response.send(error);
       });
-    }
-    throw error;
-  });
 
-  // Wait for all async task to complete then generate and return a custom auth token.
-  return Promise.all([userCreationTask, databaseTask]).then(() => {
-    // Create a Firebase custom auth token.
-    const token = admin.auth().createCustomToken(uid);
-    console.log('Created Custom token for UID "', uid, '" Token:', token);
-    return token;
-  });
-}
+      return;
+    }).catch(error=>response.send(error));
+    const checkoutApi = new SquareConnect.CheckoutApi();
+
+    return;
+}).catch(error=>response.send(error))
+});
 
 // // Create and Deploy Your First Cloud Functions
 // // https://firebase.google.com/docs/functions/write-firebase-functions
@@ -152,6 +163,8 @@ exports.callback = functions.https.onRequest((request, response) => {
   }
 });
 
+exports.checkout = functions.https.onRequest(app);
+
 /**
  * Generates the HTML template that signs the user in Firebase using the given token and closes the
  * popup.
@@ -187,4 +200,37 @@ function signInFirebaseTemplate(token, email) {
         // [END_EXCLUDE]
       });
     </script>`;
+}
+
+function createFirebaseAccount(id, squareEmail, displayName, accessToken) {
+  // The UID we'll assign to the user.
+  const uid = `square:${id}`;
+
+  // Save the access token tot he Firebase Realtime Database.
+  const databaseTask = admin.database().ref(`/squareAccessToken/${uid}`)
+    .set(accessToken);
+
+  // Create or update the user account.
+  const userCreationTask = admin.auth().updateUser(uid, {
+    displayName: displayName,
+    email: squareEmail
+  }).catch(error => {
+    // If user does not exists we create it.
+    if (error.code === 'auth/user-not-found') {
+      return admin.auth().createUser({
+        uid: uid,
+        displayName: displayName,
+        email: squareEmail
+      });
+    }
+    throw error;
+  });
+
+  // Wait for all async task to complete then generate and return a custom auth token.
+  return Promise.all([userCreationTask, databaseTask]).then(() => {
+    // Create a Firebase custom auth token.
+    const token = admin.auth().createCustomToken(uid);
+    console.log('Created Custom token for UID "', uid, '" Token:', token);
+    return token;
+  });
 }

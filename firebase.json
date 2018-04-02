@@ -24,6 +24,10 @@
       {
         "source": "/catalog",
         "function": "catalog"
+      },
+      {
+        "source": "/checkout/*/*",
+        "function": "checkout"
       }
     ]
   }
