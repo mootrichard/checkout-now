@@ -8,13 +8,8 @@
     <script defer src="/__/firebase/4.12.0/firebase-app.js"></script>
     <!-- include only the Firebase features as you need -->
     <script defer src="/__/firebase/4.12.0/firebase-auth.js"></script>
-    <script defer src="/__/firebase/4.12.0/firebase-database.js"></script>
-    <script defer src="/__/firebase/4.12.0/firebase-messaging.js"></script>
-    <script defer src="/__/firebase/4.12.0/firebase-storage.js"></script>
     <!-- initialize the SDK after all desired features are loaded -->
     <script defer src="/__/firebase/init.js"></script>
-    <script src="https://cdn.firebase.com/libs/firebaseui/2.7.0/firebaseui.js"></script>
-    <link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/2.7.0/firebaseui.css" />
 
     <style media="screen">
       body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
@@ -35,8 +30,8 @@
     <div id="message">
       <h2>Welcome</h2>
       <h1>Checkout Now</h1>
-      <p>Click below to connect your account.</p>
-      <a href="/authorize" target="_blank">Authorize</a>
+      <p id="loading" >Please wait...</p>
+      <a id="authorize" href="/authorize" target="_blank">Loading...</a>
       <form id="showCatalog" action="/catalog" method="POST">
         <input name="idToken" id="tokenInput" type="hidden" value="" />
       </form>
@@ -44,19 +39,6 @@
 
     <script>
       document.addEventListener('DOMContentLoaded', function() {
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        // // The Firebase SDK is initialized and available here!
-        //
-        // firebase.auth().onAuthStateChanged(user => { });
-        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
-        // firebase.messaging().requestPermission().then(() => { });
-        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
-        //
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-
-        // Initialize the FirebaseUI Widget using Firebase.
-
-        // Confirm the link is a sign-in with email link.
         if (firebase.auth().isSignInWithEmailLink(window.location.href)) {
           // Additional state parameters can also be passed via URL.
           // This can be used to continue the user's intended action before triggering
@@ -91,13 +73,9 @@
               // Some error occurred, you can inspect the code: error.code
               // Common errors could be invalid email and invalid or expired OTPs.
             });
-        }
-
-        try {
-          let app = firebase.app();
-          let features = ['auth', 'database', 'messaging', 'storage'].filter(feature => typeof app[feature] === 'function');
-        } catch (e) {
-          console.error(e);
+        } else {
+          document.getElementById('loading').innerText = 'Click below to connect your Square account.';
+          document.getElementById('authorize').innerText = 'Authorize';
         }
       });
     </script>
