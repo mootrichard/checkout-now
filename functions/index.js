@@ -59,7 +59,16 @@ exports.catalog = functions.https.onRequest((request, response) => {
 
         catalogApi.listCatalog().then((catalog) => {
           console.log(catalog);
-          response.send(catalog.objects);
+          let formattedResponse = catalog.objects.map((elem) => {
+            return {
+              name: elem.item_data.name,
+              catalogId: elem.id,
+              varId: elem.item_data.variations[0].id,
+              price: elem.item_data.variations[0].item_variation_data.price_money,
+              checkoutUrl: `https://checkout-now.firebaseapp.com/checkout/${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`
+            }
+          });
+          response.send(formattedResponse);
           return;
         }).catch((error) => {
           console.log(error);
