@@ -14,7 +14,9 @@ const app = express();
 
 app.get('/checkout/:userId/:variantId', (request, response) => {
 
-  admin.database().ref(`/squareAccessToken/square:${request.params.userId}`).once('value').then((userToken) => {
+  admin.database()
+       .ref(`/squareAccessToken/square:${request.params.userId}`)
+       .once('value').then((userToken) => {
     let idempotencyKey = crypto.randomBytes(48).toString('base64');
     (SquareConnect.ApiClient.instance)
       .authentications["oauth2"]
@@ -60,7 +62,9 @@ exports.catalog = functions.https.onRequest((request, response) => {
   admin.auth().verifyIdToken(request.body.idToken)
     .then((decodedToken) => {
       var uid = decodedToken.uid;
-      var squareToken = admin.database().ref(`/squareAccessToken/${uid}`).once('value').then((userToken) => {
+      var squareToken = admin.database()
+                             .ref(`/squareAccessToken/${uid}`)
+                             .once('value').then((userToken) => {
 
         (SquareConnect.ApiClient.instance)
         .authentications["oauth2"]
@@ -76,7 +80,8 @@ exports.catalog = functions.https.onRequest((request, response) => {
               catalogId: elem.id,
               varId: elem.item_data.variations[0].id,
               price: elem.item_data.variations[0].item_variation_data.price_money,
-              checkoutUrl: `https://checkout-now.firebaseapp.com/checkout/${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`
+              checkoutUrl: `https://checkout-now.firebaseapp.com/checkout/`+
+                           `${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`
             }
           });
           response.send(formattedResponse);
@@ -207,8 +212,9 @@ function createFirebaseAccount(id, squareEmail, displayName, accessToken) {
   const uid = `square:${id}`;
 
   // Save the access token tot he Firebase Realtime Database.
-  const databaseTask = admin.database().ref(`/squareAccessToken/${uid}`)
-    .set(accessToken);
+  const databaseTask = admin.database()
+                            .ref(`/squareAccessToken/${uid}`)
+                            .set(accessToken);
 
   // Create or update the user account.
   const userCreationTask = admin.auth().updateUser(uid, {
