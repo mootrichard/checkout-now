@@ -19,7 +19,7 @@
       },
       {
         "source": "/callback",
-        "function": "callback"
+        "destination": "/index.html"
       },
       {
         "source": "/catalog",
@@ -28,7 +28,12 @@
       {
         "source": "/checkout/*/*",
         "function": "checkout"
+      },
+      {
+        "source": "/code",
+        "function": "code"
       }
-    ]
+    ],
+    "cleanUrls": true
   }
 }

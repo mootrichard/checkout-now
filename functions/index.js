@@ -10,54 +10,6 @@ admin.initializeApp({
   databaseURL: functions.config().firebase.databaseURL
 });
 
-const app = express();
-
-app.get('/checkout/:userId/:variantId', (request, response) => {
-
-  admin.database()
-       .ref(`/squareAccessToken/square:${request.params.userId}`)
-       .once('value').then((userToken) => {
-    let idempotencyKey = crypto.randomBytes(48).toString('base64');
-    (SquareConnect.ApiClient.instance)
-      .authentications["oauth2"]
-      .accessToken = userToken.val();
-
-    const catalogApi = new SquareConnect.CatalogApi();
-
-    catalogApi.retrieveCatalogObject(request.params.variantId).then((item) => {
-      let locationId = item.object.present_at_location_ids[0];
-      let checkoutReq = {
-        idempotency_key: idempotencyKey,
-        order: {
-          idempotency_key: idempotencyKey,
-          reference_id: Date.now().toString(),
-          line_items: [
-            {
-              catalog_object_id: request.params.variantId,
-              quantity: "1"
-            }
-          ],
-        }
-      }
-
-      checkoutApi.createCheckout(locationId, checkoutReq).then((returnedCheckout)=>{
-        response.redirect(returnedCheckout.checkout.checkout_page_url);
-        return;
-      }).catch((error)=>{
-        response.send(error);
-      });
-
-      return;
-    }).catch(error=>response.send(error));
-    const checkoutApi = new SquareConnect.CheckoutApi();
-
-    return;
-}).catch(error=>response.send(error))
-});
-
-// // Create and Deploy Your First Cloud Functions
-// // https://firebase.google.com/docs/functions/write-firebase-functions
-//
 exports.catalog = functions.https.onRequest((request, response) => {
   admin.auth().verifyIdToken(request.body.idToken)
     .then((decodedToken) => {
@@ -168,12 +120,103 @@ exports.callback = functions.https.onRequest((request, response) => {
   }
 });
 
+exports.code = functions.https.onRequest((request, response) => {
+  const tokenURL = "https://connect.squareup.com/oauth2/token";
+  const redirectURI = "https://checkout-now.firebaseapp.com/callback";
+  let cookieState = request.get('cookie').slice(10);
+
+  if (cookieState === request.body.state) {
+    axios.post(tokenURL, {
+      client_id: functions.config().square.prod.app_id,
+      client_secret: functions.config().square.prod.secret,
+      code: decodeURIComponent(request.body.code),
+      redirect_uri: redirectURI
+    })
+      .then((token) => {
+        return (
+          axios.get("https://connect.squareup.com/v1/me", {
+            "headers": {
+              "Authorization": `Bearer ${token.data.access_token}`
+            }
+          })
+            .then((user) => {
+              createFirebaseAccount(user.data.id,
+                user.data.email,
+                user.data.name,
+                token.data.access_token)
+                .then(firebaseToken => {
+                  // Serve an HTML page that signs the user in and updates the user profile.
+                  response.send({email: user.data.email});
+                  return;
+                })
+                .catch(error => {
+                  console.log(error);
+                  response.send(error);
+                })
+              return;
+            })
+            .catch(error => {
+              console.log(error)
+              response.send(error);
+            })
+        )
+      })
+      .catch(error => {
+        console.log(error)
+        response.send(error);
+      });
+  } else {
+    response.send(`${cookieState} === ${request.body.state}`);
+  }
+});
+
+const app = express();
+
+app.get('/checkout/:userId/:variantId', (request, response) => {
+
+  admin.database()
+       .ref(`/squareAccessToken/square:${request.params.userId}`)
+       .once('value').then((userToken) => {
+    let idempotencyKey = crypto.randomBytes(48).toString('base64');
+    (SquareConnect.ApiClient.instance)
+      .authentications["oauth2"]
+      .accessToken = userToken.val();
+
+    const catalogApi = new SquareConnect.CatalogApi();
+
+    catalogApi.retrieveCatalogObject(request.params.variantId).then((item) => {
+      let locationId = item.object.present_at_location_ids[0];
+      let checkoutReq = {
+        idempotency_key: idempotencyKey,
+        order: {
+          idempotency_key: idempotencyKey,
+          reference_id: Date.now().toString(),
+          line_items: [
+            {
+              catalog_object_id: request.params.variantId,
+              quantity: "1"
+            }
+          ],
+        }
+      }
+
+      checkoutApi.createCheckout(locationId, checkoutReq).then((returnedCheckout)=>{
+        response.redirect(returnedCheckout.checkout.checkout_page_url);
+        return;
+      }).catch((error)=>{
+        response.send(error);
+      });
+
+      return;
+    }).catch(error=>response.send(error));
+    const checkoutApi = new SquareConnect.CheckoutApi();
+
+    return;
+}).catch(error=>response.send(error))
+});
+
 exports.checkout = functions.https.onRequest(app);
 
-/**
- * Generates the HTML template that signs the user in Firebase using the given token and closes the
- * popup.
- */
 function signInFirebaseTemplate(token, email) {
   return `
     <script src="https://www.gstatic.com/firebasejs/4.12.0/firebase.js"></script>
