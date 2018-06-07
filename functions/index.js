@@ -27,16 +27,36 @@ exports.catalog = functions.https.onRequest((request, response) => {
         catalogApi.listCatalog().then((catalog) => {
           console.log(catalog);
           let formattedResponse = catalog.objects.map((elem) => {
-            return {
-              name: elem.item_data.name,
-              catalogId: elem.id,
-              varId: elem.item_data.variations[0].id,
-              price: elem.item_data.variations[0].item_variation_data.price_money,
-              checkoutUrl: `https://checkout-now.firebaseapp.com/checkout/`+
-                           `${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`
-            }
+            return axios.post(`https://firebasedynamiclinks.googleapis.com/v1/shortLinks?` +
+              `key=${functions.config().web.key}`, {
+                "longDynamicLink": `https://checkout.page.link/?link=https://checkout-now.firebaseapp.com/checkout/${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`,
+                "suffix": {
+                  "option": "SHORT"
+                }
+            }).then(resp => {
+              return {
+                name: elem.item_data.name,
+                catalogId: elem.id,
+                varId: elem.item_data.variations[0].id,
+                price: elem.item_data.variations[0].item_variation_data.price_money,
+                checkoutUrl: resp.data.shortLink
+              }
+            })
+            .catch(err => console.log(err))
+            // return {
+            //   name: elem.item_data.name,
+            //   catalogId: elem.id,
+            //   varId: elem.item_data.variations[0].id,
+            //   price: elem.item_data.variations[0].item_variation_data.price_money,
+            //   checkoutUrl: `https://checkout-now.firebaseapp.com/checkout/`+
+            //                `${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`
+            // }
           });
-          response.json(formattedResponse);
+          Promise.all(formattedResponse).then((values) => {
+            response.json(values);
+            return;
+          }).catch( err => console.log(err));
+          // response.json(Promise.all(formattedResponse));
           return;
         }).catch((error) => {
           console.log(error);
@@ -123,7 +143,9 @@ exports.callback = functions.https.onRequest((request, response) => {
 exports.code = functions.https.onRequest((request, response) => {
   const tokenURL = "https://connect.squareup.com/oauth2/token";
   const redirectURI = "https://checkout-now.firebaseapp.com/callback";
-  let cookieState = request.get('cookie').slice(10);
+  let cookieState = request.get('cookie').slice(request.get('cookie').indexOf("__session=") + "__session=".length, request.get('cookie').length);
+
+  console.log(cookieState, " ", request.body.state);
 
   if (cookieState === request.body.state) {
     axios.post(tokenURL, {
@@ -145,8 +167,7 @@ exports.code = functions.https.onRequest((request, response) => {
                 user.data.name,
                 token.data.access_token)
                 .then(firebaseToken => {
-                  // Serve an HTML page that signs the user in and updates the user profile.
-                  response.send({email: user.data.email});
+                  response.json({"email": user.data.email, "token": firebaseToken});
                   return;
                 })
                 .catch(error => {
@@ -166,7 +187,8 @@ exports.code = functions.https.onRequest((request, response) => {
         response.send(error);
       });
   } else {
-    response.send(`${cookieState} === ${request.body.state}`);
+    console.log(`INVALID STATE: ${cookieState} === ${request.body.state}`);
+    response.send(`INVALID STATE: ${cookieState} === ${request.body.state}`);
   }
 });
 

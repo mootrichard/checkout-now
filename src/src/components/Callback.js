@@ -15,8 +15,8 @@ class Callback extends Component {
     componentWillMount(){
         const search = new URLSearchParams(window.location.search);
         const callbackValues = {
-            code: search.get('code'),
-            state: search.get('state')
+            "code": search.get('code'),
+            "state": search.get('state')
         };
 
         fetch('/code', {
@@ -29,6 +29,7 @@ class Callback extends Component {
                 'Content-Type': 'application/json'
             }
         }).then((data)=>{
+            console.log(data);
             return data.json();
         }).then((data) => {
             const email = data.email;
