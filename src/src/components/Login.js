@@ -2,6 +2,10 @@ import React, { Component } from 'react';
 import * as firebase from 'firebase';
 import 'firebase/auth';
 
+import {
+    Redirect
+} from "react-router-dom";
+
 import Styles from '../styles/styles';
 
 class Login extends Component {
@@ -29,8 +33,8 @@ class Login extends Component {
                 .then(function (result) {
                     window.localStorage.removeItem('emailForSignIn');
                     firebase.auth().currentUser.getIdToken().then(function (idToken) {
-                        document.getElementById('tokenInput').value = idToken;
-                        document.getElementById('showCatalog').submit();
+                        window.localStorage.setItem("token", idToken);
+                        window.location.href =  window.location.origin + "/urls";
                     }).catch(function (error) {
                         // Handle error
                     });
@@ -58,7 +62,7 @@ class Login extends Component {
             return response.text();
         }).then((text)=>{
             window.location = text;
-        })
+        }).catch(error => console.log(error) )
     }
 
     render(){

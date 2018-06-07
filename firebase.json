@@ -22,6 +22,10 @@
         "destination": "/index.html"
       },
       {
+        "source": "/urls",
+        "destination": "/index.html"
+      },
+      {
         "source": "/catalog",
         "function": "catalog"
       },

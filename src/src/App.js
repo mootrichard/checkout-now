@@ -9,6 +9,7 @@ import 'firebase/auth';
 
 import Login from './components/Login';
 import Callback from './components/Callback';
+import Catalog from './components/Catalog';
 
 const config = {
   apiKey: "AIzaSyDrrp3ST84F35MLpjOysrG3X-VYhUq1j8o",
@@ -41,6 +42,7 @@ class App extends Component {
             <Route exact path="/" component={Login} />
             <Route path="/login" component={Login} />
             <Route path="/callback" component={Callback} />
+            <Route path="/urls" component={Catalog} />
           </div>
         </Router>
       </div>

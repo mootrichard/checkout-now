@@ -36,7 +36,7 @@ exports.catalog = functions.https.onRequest((request, response) => {
                            `${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`
             }
           });
-          response.send(formattedResponse);
+          response.json(formattedResponse);
           return;
         }).catch((error) => {
           console.log(error);
@@ -59,7 +59,7 @@ exports.authorize = functions.https.onRequest((request, response) => {
   const state = (crypto.randomBytes(32)).toString('hex');
   response.set('Set-Cookie', `__session=${state}; Secure`);
 
-  response.redirect(
+  response.send(
     squareAuthURL +
     `client_id=${functions.config().square.prod.app_id}&` +
     `response_type=code&` +
