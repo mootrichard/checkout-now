@@ -5,73 +5,54 @@ const crypto = require('crypto');
 const axios = require('axios');
 const express = require('express');
 const serviceAccount = require("./service-account.json");
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: functions.config().firebase.databaseURL
 });
 
 exports.catalog = functions.https.onRequest((request, response) => {
+  let uid;
   admin.auth().verifyIdToken(request.body.idToken)
-    .then((decodedToken) => {
-      var uid = decodedToken.uid;
-      var squareToken = admin.database()
-                             .ref(`/squareAccessToken/${uid}`)
-                             .once('value').then((userToken) => {
-
-        (SquareConnect.ApiClient.instance)
-        .authentications["oauth2"]
-          .accessToken = userToken.val();
-
-        const catalogApi = new SquareConnect.CatalogApi();
-
-        catalogApi.listCatalog().then((catalog) => {
-          console.log(catalog);
-          let formattedResponse = catalog.objects.map((elem) => {
-            return axios.post(`https://firebasedynamiclinks.googleapis.com/v1/shortLinks?` +
-              `key=${functions.config().web.key}`, {
-                "longDynamicLink": `https://checkout.page.link/?link=https://checkout-now.firebaseapp.com/checkout/${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`,
-                "suffix": {
-                  "option": "SHORT"
-                }
-            }).then(resp => {
-              return {
-                name: elem.item_data.name,
-                catalogId: elem.id,
-                varId: elem.item_data.variations[0].id,
-                price: elem.item_data.variations[0].item_variation_data.price_money,
-                checkoutUrl: resp.data.shortLink
-              }
-            })
-            .catch(err => console.log(err))
-            // return {
-            //   name: elem.item_data.name,
-            //   catalogId: elem.id,
-            //   varId: elem.item_data.variations[0].id,
-            //   price: elem.item_data.variations[0].item_variation_data.price_money,
-            //   checkoutUrl: `https://checkout-now.firebaseapp.com/checkout/`+
-            //                `${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`
-            // }
-          });
-          Promise.all(formattedResponse).then((values) => {
-            response.json(values);
-            return;
-          }).catch( err => console.log(err));
-          // response.json(Promise.all(formattedResponse));
-          return;
-        }).catch((error) => {
-          console.log(error);
-          response.send(error);
-        });
-
-        return;
-      }).catch(error => console.log(error));
-      return;
-    }).catch( (error) => {
-      // Handle error
+    .then(decodedToken => {
+      ({
+        uid
+      } = decodedToken);
+      return admin.database()
+        .ref(`/squareAccessToken/${uid}`)
+        .once('value')
+    }).then(userToken => {
+      (SquareConnect.ApiClient.instance).authentications["oauth2"]
+        .accessToken = userToken.val();
+      const catalogApi = new SquareConnect.CatalogApi();
+      return catalogApi.listCatalog()
+    }).then(catalog => {
+      let formattedResponse = catalog.objects.map((elem) => {
+        return axios.post(`https://firebasedynamiclinks.googleapis.com/v1/shortLinks?` +
+          `key=${functions.config().web.key}`, {
+            "longDynamicLink": `https://checkout.page.link/?` +
+              `link=https://checkout-now.firebaseapp.com/checkout/` +
+              `${(uid.split(":"))[1]}/${elem.item_data.variations[0].id}`,
+            "suffix": {
+              "option": "SHORT"
+            }
+          }).then(resp => {
+          return {
+            name: elem.item_data.name,
+            catalogId: elem.id,
+            varId: elem.item_data.variations[0].id,
+            price: elem.item_data.variations[0].item_variation_data.price_money,
+            checkoutUrl: resp.data.shortLink
+          }
+        }).catch(err => console.log(err))
+      });
+      return Promise.all(formattedResponse)
+    }).then(values => {
+      return response.json(values);
+    }).catch(error => {
+      console.log(error);
       response.send(error);
-      return;
     });
-
 });
 
 exports.authorize = functions.https.onRequest((request, response) => {
@@ -93,122 +74,94 @@ exports.authorize = functions.https.onRequest((request, response) => {
 exports.callback = functions.https.onRequest((request, response) => {
   const tokenURL = "https://connect.squareup.com/oauth2/token";
   const redirectURI = "https://checkout-now.firebaseapp.com/callback";
-  let cookieState = request.get('cookie').slice(10);
+  const cookieState = request.get('cookie').slice(10);
 
   if (cookieState === request.query.state) {
     axios.post(tokenURL, {
-        client_id: functions.config().square.prod.app_id,
-        client_secret: functions.config().square.prod.secret,
-        code: decodeURIComponent(request.query.code),
-        redirect_uri: redirectURI
+      client_id: functions.config().square.prod.app_id,
+      client_secret: functions.config().square.prod.secret,
+      code: decodeURIComponent(request.query.code),
+      redirect_uri: redirectURI
+    }).then(token => {
+      return axios.get("https://connect.squareup.com/v1/me", {
+        "headers": {
+          "Authorization": `Bearer ${token.data.access_token}`
+        }
       })
-      .then((token) => {
-        return (
-          axios.get("https://connect.squareup.com/v1/me", {
-            "headers": {
-              "Authorization": `Bearer ${token.data.access_token}`
-            }
-          })
-          .then((user) => {
-            createFirebaseAccount(user.data.id,
-                                  user.data.email,
-                                  user.data.name,
-                                  token.data.access_token)
-              .then(firebaseToken => {
-                // Serve an HTML page that signs the user in and updates the user profile.
-                  response.send(signInFirebaseTemplate(firebaseToken, user.data.email));
-                  return;
-              })
-              .catch(error => {
-                console.log(error);
-                response.send(error);
-              })
-            return;
-          })
-          .catch(error => {
-            console.log(error)
-            response.send(error);
-          })
-        )
-      })
-      .catch(error => {
-        console.log(error)
-        response.send(error);
-      });
+    }).then(user => {
+      return createFirebaseAccount(user.data.id,
+        user.data.email,
+        user.data.name,
+        token.data.access_token)
+    }).then(firebaseToken => {
+      return response.send(signInFirebaseTemplate(firebaseToken, user.data.email));
+    }).catch(error => {
+      console.log(error);
+      response.send(error);
+    });
   } else {
     response.send(`${cookieState} === ${request.query.state}`);
   }
 });
 
+function getSessionCookie(cookie){
+  return cookie.slice(cookie.indexOf("__session=") + "__session=".length, cookie.length)
+}
+
 exports.code = functions.https.onRequest((request, response) => {
   const tokenURL = "https://connect.squareup.com/oauth2/token";
   const redirectURI = "https://checkout-now.firebaseapp.com/callback";
-  let cookieState = request.get('cookie').slice(request.get('cookie').indexOf("__session=") + "__session=".length, request.get('cookie').length);
+  const cookieState = getSessionCookie(request.get('cookie'))
+  const { code, state } = request.body;
 
-  console.log(cookieState, " ", request.body.state);
-
-  if (cookieState === request.body.state) {
-    axios.post(tokenURL, {
-      client_id: functions.config().square.prod.app_id,
-      client_secret: functions.config().square.prod.secret,
-      code: decodeURIComponent(request.body.code),
-      redirect_uri: redirectURI
-    })
-      .then((token) => {
-        return (
-          axios.get("https://connect.squareup.com/v1/me", {
-            "headers": {
-              "Authorization": `Bearer ${token.data.access_token}`
-            }
-          })
-            .then((user) => {
-              createFirebaseAccount(user.data.id,
-                user.data.email,
-                user.data.name,
-                token.data.access_token)
-                .then(firebaseToken => {
-                  response.json({"email": user.data.email, "token": firebaseToken});
-                  return;
-                })
-                .catch(error => {
-                  console.log(error);
-                  response.send(error);
-                })
-              return;
-            })
-            .catch(error => {
-              console.log(error)
-              response.send(error);
-            })
-        )
+  if (cookieState === state) {
+    const { app_id, secret } = functions.config().square.prod;
+    let access_token, id, email, name;
+    return axios.post(tokenURL, {
+        client_id: app_id,
+        client_secret: secret,
+        code: decodeURIComponent(code),
+        redirect_uri: redirectURI
       })
-      .catch(error => {
-        console.log(error)
-        response.send(error);
+      .then(token => {
+        ({ access_token } = token.data);
+        return axios.get("https://connect.squareup.com/v1/me", {
+            "headers": {
+              "Authorization": `Bearer ${access_token}`
+            }
+      }).then(user => {
+        ({ id, email, name } = user.data);
+        return createFirebaseAccount(id, email, name, access_token)
+      }).then(firebaseToken => {
+        return response.json({
+          "email": email,
+          "token": firebaseToken
+        });
+      }).catch(error => {
+        console.log(error);
+        return response.send(error);
       });
+    });
   } else {
-    console.log(`INVALID STATE: ${cookieState} === ${request.body.state}`);
-    response.send(`INVALID STATE: ${cookieState} === ${request.body.state}`);
+    console.log(`INVALID STATE: ${cookieState} === ${state}`);
+    return response.send(`INVALID STATE: ${cookieState} === ${state}`);
   }
 });
 
 const app = express();
-
 app.get('/checkout/:userId/:variantId', (request, response) => {
-
   admin.database()
        .ref(`/squareAccessToken/square:${request.params.userId}`)
-       .once('value').then((userToken) => {
-    let idempotencyKey = crypto.randomBytes(48).toString('base64');
-    (SquareConnect.ApiClient.instance)
-      .authentications["oauth2"]
-      .accessToken = userToken.val();
-
-    const catalogApi = new SquareConnect.CatalogApi();
-
-    catalogApi.retrieveCatalogObject(request.params.variantId).then((item) => {
-      let locationId = item.object.present_at_location_ids[0];
-      let checkoutReq = {
+       .once('value')
+    .then( userToken => {
+      (SquareConnect.ApiClient.instance).authentications["oauth2"].accessToken = userToken.val();
+      const catalogApi = new SquareConnect.CatalogApi();
+      return catalogApi.retrieveCatalogObject(request.params.variantId)
+    }).then( item => {
+      const checkoutApi = new SquareConnect.CheckoutApi();
+      const idempotencyKey = crypto.randomBytes(48).toString('base64');
+      const locationId = item.object.present_at_location_ids[0];
+      const checkoutReq = {
         idempotency_key: idempotencyKey,
         order: {
           idempotency_key: idempotencyKey,
@@ -221,22 +174,11 @@ app.get('/checkout/:userId/:variantId', (request, response) => {
           ],
         }
       }
-
-      checkoutApi.createCheckout(locationId, checkoutReq).then((returnedCheckout)=>{
-        response.redirect(returnedCheckout.checkout.checkout_page_url);
-        return;
-      }).catch((error)=>{
-        response.send(error);
-      });
-
-      return;
-    }).catch(error=>response.send(error));
-    const checkoutApi = new SquareConnect.CheckoutApi();
-
-    return;
-}).catch(error=>response.send(error))
+      return checkoutApi.createCheckout(locationId, checkoutReq)
+    }).then( returnedCheckout => {
+      return response.redirect(returnedCheckout.checkout.checkout_page_url);
+    }).catch( error => response.send(error));
 });
-
 exports.checkout = functions.https.onRequest(app);
 
 function signInFirebaseTemplate(token, email) {
